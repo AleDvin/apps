@@ -1,0 +1,198 @@
+contract CrudCreate {
+    data {
+        Name string
+    }
+    func getAppSec(table string) string{
+        var app appName res string
+        app = DBFind("tables").Where("name=?", table).Columns("app_id").One("app_id")
+        if app {
+            appName = DBFind("applications").Where("id=?", app).Columns("name").One("name")
+            res = Sprintf(`DBFind(applications).Columns("id").Where("name='%v' AND deleted=0").Vars(application)\n`, appName)
+        }
+        if res == "" {
+            warning "Application not found"
+        }
+        return res
+    }
+
+    func createPageRecords(t string, cols array){
+        var body temp array pagePref contractPref string
+        if Contains(t, "_"){
+            temp = Split(t, "_")
+            pagePref = ToLower(temp[0])
+        }
+        body = Append(body, getAppSec(t))
+        body = Sprintf("DBFind(%v).Count(count)", t)
+        body = Sprintf("SetTitle($rope_works$))", t)
+        body = Sprintf("DBFind(%v).Count(count)", t)
+
+        SetVar(page_name,rope_works)
+        If(#page#>0){
+            SetVar(prev_page,Calculate(#page#-1)
+        }.Else{
+            SetVar(page,0).(prev_page,0)
+        }
+        SetVar(per_page,25).(off,Calculate(#page#*#per_page#)).(last_page,Calculate(#count#/#per_page#)).(next_page,#last_page#)
+        If(#count#>Calculate(#off#+#per_page#)){
+            SetVar(next_page,Calculate(#page#+1)
+        }
+        Div(content-wrapper){
+            Div(text-right){
+                Button(Body: $rope_recalculate$, Class: btn btn-default, Page: #page_name#, Contract: RopeWorksCalculate)
+            }
+            Div(button-group){
+                If(#page#>0){
+                    Button(Body:"1", Class:btn btn-default, Page:#page_name#, PageParams: "page=0")
+                }.Else{
+                    Button(Body:"1", Class:btn btn-default disabled)
+                }
+                If(#page#>1){
+                    Button(Body:Calculate(#prev_page#+1), Class:btn btn-default, Page:#page_name#, PageParams: "page=#prev_page#")
+                }
+                If(And(#page#>0,#page#<#last_page#)){
+                    Button(Body:Calculate(#page#+1), Class:btn btn-default disabled)
+                }
+                If(#next_page#<#last_page#){
+                    Button(Body:Calculate(#next_page#+1), Class:btn btn-default, Page:#page_name#, PageParams: "page=#next_page#")
+                }
+                If(#page#<#last_page#){
+                    Button(Body:Calculate(#last_page#+1), Class:btn btn-default, Page:#page_name#, PageParams: "page=#last_page#")
+                }.ElseIf(#last_page#>0){
+                    Button(Body:Calculate(#last_page#+1), Class:btn btn-default disabled)
+                }
+            }
+            Div(panel panel-primary){
+                Div(panel-body){
+                    Div(table-responsive){
+                        DBFind(rope_works,works).Offset(#off#).Order(id).Custom(_date){
+                            Div(text-nowrap){
+                                DateTime(#operation_date#, DD-MM-YYYY)
+                            }
+                        }.Custom(_type){
+                            Div(text-nowrap){
+                                #operation_type#
+                            }
+                        }.Custom(_wb){
+                            Calculate(#work_bypass#, Prec:0)
+                        }.Custom(_ws){
+                            Calculate(#work_started#, Prec:0)
+                        }.Custom(_wf){
+                            Calculate(#work_final#, Prec:0)
+                        }.Custom(_wo){
+                            Calculate(#work_operation#, Prec:0)
+                        }.Custom(_wc){
+                            Calculate(#work_coil#, Prec:0)
+                        }
+                        Table(works,"$rope_drilling_id$=rope_drilling_id,$rope_operation$=operation,$rope_operation_date$=_date,$rope_operation_type$=_type,$rope_depth_started$=depth_started,$rope_depth_final$=depth_final,$rope_weight_started$=weight_started,$rope_weight_final$=weight_final,$rope_work_started$=_ws, $rope_work_final$=_wf, $rope_work_operation$=_wo, $rope_work_bypass$=_wb, $rope_work_coil$=_wc,$rope_bypass_bracing$=bypass_bracing")
+                    }
+                }
+            }
+        }
+    }
+    conditions {
+        $table = DBFind("tables").Columns("columns").Where("name=?", $Name).Row()
+        if !$table{
+            warning "Table not found"
+        }
+    }
+
+    action {
+        var cols array
+        cols = GetMapKeys(JSONDecode($table["columns"]))
+        Println("cols",cols)
+
+        createPageRecords($Name,cols)
+    }
+}
+
+/*
+
+
+
+
+
+
+DBFind(applications).Columns("id").Where("name='Rope accounting' AND deleted=0").Vars(application)
+
+SetVar(title,$rope_drilling_create$)
+SetVar(btn_title,$rope_create$)
+SetVar(drilling_filial,).(drilling_expedition,).(drilling_brigade,).(drilling_master,).(drilling_block_weight,).(drilling_candle_length,)
+If(GetVar(Id)){
+    DBFind(rope_drillings).Where("id=#Id#").Vars(drilling)
+    SetVar(title,$rope_drilling_edit$)
+    SetVar(btn_title,$rope_edit$)
+}
+SetTitle(#title#)
+Div(content-wrapper){
+    Div(breadcrumb){
+        LinkPage(Body: $rope_drillings$, Page: rope_drillings)
+        Span(/, mh-sm)
+        Span(#title#, text-muted)
+    }
+    Div(row){
+        Div(col-sm-8 col-sm-offset-2 col-lg-6 col-lg-offset-3){
+            Form(panel panel-primary){
+                Div(panel-heading){
+                    LangRes($rope_data_input$)
+                }
+                Div(panel-body){
+                    If(GetVar(Id)){
+                        Input(Name: Id, Type:hidden, Value: #Id#)
+                    }
+                    Div(row mt-sm){
+                        Div(col-sm-4 mt-sm text-right){
+                            LangRes(rope_filial)
+                        }
+                        Div(#col-sm-8 text-left#){
+                            Input(Name: Filial, Value: #drilling_filial#)
+                        }
+                    }
+                    Div(row mt-sm){
+                        Div(col-sm-4 mt-sm text-right){
+                            LangRes(rope_expedition)
+                        }
+                        Div(#col-sm-8 text-left#){
+                            Input(Name: Expedition, Value: #drilling_expedition#)
+                        }
+                    }
+                    Div(row mt-sm){
+                        Div(col-sm-4 mt-sm text-right){
+                            LangRes(rope_brigade)
+                        }
+                        Div(#col-sm-8 text-left#){
+                            Input(Name: Brigade, Value: #drilling_brigade#)
+                        }
+                    }
+                    Div(row mt-sm){
+                        Div(col-sm-4 mt-sm text-right){
+                            LangRes(rope_master)
+                        }
+                        Div(#col-sm-8 text-left#){
+                            Input(Name: Master, Value: #drilling_master#)
+                        }
+                    }
+                    Div(row mt-sm){
+                        Div(col-sm-4 mt-sm text-right){
+                            $rope_block_weight_full$, $rope_ton$
+                        }
+                        Div(#col-sm-8 text-left#){
+                            Input(Name: BlockWeight, Type: number, Value: #drilling_block_weight#)
+                        }
+                    }
+                    Div(row mt-sm){
+                        Div(col-sm-4 mt-sm text-right){
+                            LangRes(rope_candle_length)
+                        }
+                        Div(#col-sm-8 text-left#){
+                            Input(Name: CandleLength, Type:number, Value: #drilling_candle_length#)
+                        }
+                    }
+                }
+                Div(panel-footer text-right){
+                    Button(Body: #btn_title#, Page: rope_drillings, Class: btn btn-primary, Contract: RopeDrillingEdit)
+                }
+            }
+        }
+    }
+}
+*/
