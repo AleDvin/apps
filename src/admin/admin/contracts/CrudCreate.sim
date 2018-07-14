@@ -2,197 +2,211 @@ contract CrudCreate {
     data {
         Name string
     }
-    func getAppSec(table string) string{
-        var app appName res string
-        app = DBFind("tables").Where("name=?", table).Columns("app_id").One("app_id")
-        if app {
-            appName = DBFind("applications").Where("id=?", app).Columns("name").One("name")
-            res = Sprintf(`DBFind(applications).Columns("id").Where("name='%v' AND deleted=0").Vars(application)\n`, appName)
-        }
-        if res == "" {
-            warning "Application not found"
+
+    func toUpper(s string) string {
+        var conv map
+        conv["q"] = "Q"
+        conv["a"] = "A"
+        conv["z"] = "Z"
+        conv["w"] = "W"
+        conv["s"] = "S"
+        conv["x"] = "X"
+        conv["e"] = "E"
+        conv["d"] = "D"
+        conv["c"] = "C"
+        conv["r"] = "R"
+        conv["f"] = "F"
+        conv["v"] = "V"
+        conv["t"] = "T"
+        conv["g"] = "G"
+        conv["b"] = "B"
+        conv["y"] = "Y"
+        conv["h"] = "H"
+        conv["n"] = "N"
+        conv["u"] = "U"
+        conv["j"] = "J"
+        conv["m"] = "M"
+        conv["i"] = "I"
+        conv["k"] = "K"
+        conv["o"] = "O"
+        conv["l"] = "L"
+        conv["p"] = "P"
+        var i int res b string
+        while i < Size(s){
+            b = Substr(s, i, 1)
+            if conv[b]{
+                res = res + conv[b]
+            }else{
+                res = res + b
+            }
+            i=i+1
         }
         return res
     }
+    func toCaps(t string) string{
+        var parts array i int
+        parts = Split(t, "_")
+        while i < Len(parts){
+            parts[i] = toUpper(Substr(parts[i], 0, 1)) + ToLower(Substr(parts[i], 1, Size(parts[i])))
+            i=i+1
+        }
+        return Join(parts, "")
+    }
+    func getPaginator(tableName string) string{
+        var body array
+        body = Append(body,Sprintf("DBFind(%v).Count(count)", tableName))
+        body = Append(body,`If(#page#>0){`)
+        body = Append(body,`\tSetVar(prev_page,Calculate(#page#-1)`)
+        body = Append(body,`}.Else{`)
+        body = Append(body,`\tSetVar(page,0).(prev_page,0)`)
+        body = Append(body,`}`)
+        body = Append(body,"SetVar(per_page,25).(off,Calculate(#page#*#per_page#)).(last_page,Calculate(#count#/#per_page#)).(next_page,#last_page#)")
+        body = Append(body,`If(#count#>Calculate(#off#+#per_page#)){`)
+        body = Append(body,`\tSetVar(next_page,Calculate(#page#+1)`)
+        body = Append(body,`}`)
+        body = Append(body,`Div(content-wrapper){`)
+        body = Append(body,`\tDiv(button-group){`)
+        body = Append(body,`\t\tIf(#page#>0){`)
+        body = Append(body,`\t\t\tButton(Body:"1", Class:btn btn-default, Page:#page_name#, PageParams: "page=0")`)
+        body = Append(body,`\t\t}.Else{`)
+        body = Append(body,`\t\t\tButton(Body:"1", Class:btn btn-default disabled)`)
+        body = Append(body,`\t\t}`)
+        body = Append(body,`\t\tIf(#page#>1){`)
+        body = Append(body,`\t\t\tButton(Body:Calculate(#prev_page#+1),Class:btn btn-default, Page:#page_name#, PageParams:"page=#prev_page#")`)
+        body = Append(body,`\t\t}`)
+        body = Append(body,`\t\tIf(And(#page#>0,#page#<#last_page#)){`)
+        body = Append(body,`\t\t\tButton(Body:Calculate(#page#+1), Class:btn btn-default disabled)`)
+        body = Append(body,`\t\t}`)
+        body = Append(body,`\t\tIf(#next_page#<#last_page#){`)
+        body = Append(body,`\t\t\tButton(Body:Calculate(#next_page#+1),Class:btn btn-default,Page:#page_name#,PageParams:"page=#next_page#")`)
+        body = Append(body,`\t\t}`)
+        body = Append(body,`\t\tIf(#page#<#last_page#){`)
+        body = Append(body,`\t\t\tButton(Body:Calculate(#last_page#+1), Class:btn btn-default, Page:#page_name#,PageParams:"page=#last_page#")`)
+        body = Append(body,`\t\t}.ElseIf(#last_page#>0){`)
+        body = Append(body,`\t\t\tButton(Body:Calculate(#last_page#+1), Class:btn btn-default disabled)`)
+        body = Append(body,`\t\t}`)
+        body = Append(body,`\t}`)
 
-    func createPageRecords(t string, cols array){
-        var body temp array pagePref contractPref string
-        if Contains(t, "_"){
-            temp = Split(t, "_")
-            pagePref = ToLower(temp[0])
-        }
-        body = Append(body, getAppSec(t))
-        body = Sprintf("DBFind(%v).Count(count)", t)
-        body = Sprintf("SetTitle($rope_works$))", t)
-        body = Sprintf("DBFind(%v).Count(count)", t)
+        return Join(body, "\n")
+    }
+    func getPageRecords(tableName string, cols array, pageName pageRecordsName contractDeleteName string) string{
+        var body array
+        body = Append(body,Sprintf(`DBFind(applications).Columns("id").Where("name='%v' AND deleted=0").Vars(application)`, $appName))
+        body = Append(body,Sprintf("DBFind(%v).Count(count)", tableName))
+        body = Append(body,Sprintf("SetTitle($%v$))", pageRecordsName))
+        body = Append(body,Sprintf("SetVar(page_name,%v)", pageRecordsName))
+        body = Append(body, getPaginator(tableName))
+        body = Append(body,"\tDiv(panel panel-primary){")
+        body = Append(body,"\t\tDiv(panel-body){")
+        body = Append(body,"\t\t\tDiv(table-responsive){")
+        body = Append(body,Sprintf("\t\t\t\tDBFind(%v,src_%v).Offset(#off#).Order(id).Custom", tableName, tableName))
+        body = Append(body,`.Custom(_actions){`)
+        body = Append(body,`\tDiv(text-right text-nowrap){`)
+        body = Append(body,Sprintf(`\t\tButton(Class: btn btn-default fa fa-edit mr-sm, Page: %v, PageParams: "Id=#id#")`,pageRecordsName))
+        body = Append(body,Sprintf(`\t\tButton(Class: btn btn-danger fa fa-trash, Page: %v, Contract: %v, Params: "Id=#id#").Alert($%v$, $%v$, $%v$)`,pageRecordsName, contractDeleteName,"delete_alert", "yes", "no"))
+        body = Append(body,`\t}`)
+        body = Append(body,`}`)
 
-        SetVar(page_name,rope_works)
-        If(#page#>0){
-            SetVar(prev_page,Calculate(#page#-1)
-        }.Else{
-            SetVar(page,0).(prev_page,0)
+        body = Append(body,Sprintf(`\t\t\t\tTable(src_%v)`,tableName))
+        body = Append(body,"\t\t\t}")
+        body = Append(body,"\t\t}")
+        body = Append(body,"\t}")
+        body = Append(body,"}")
+        return Join(body, "\n")
+    }
+    func trim_s(s string)string{
+        if Substr(s, Size(s)-1, 1) == "s"{
+            return Substr(s, 0, Size(s)-1)
         }
-        SetVar(per_page,25).(off,Calculate(#page#*#per_page#)).(last_page,Calculate(#count#/#per_page#)).(next_page,#last_page#)
-        If(#count#>Calculate(#off#+#per_page#)){
-            SetVar(next_page,Calculate(#page#+1)
+        return s
+    }
+    func getPageEdit(tableName string, cols array, pageRecordsName, pageName, contractEditName string)string{
+        var body array i lenCols int
+        body = Append(body,Sprintf(`DBFind(applications).Columns("id").Where("name='%v' AND deleted=0").Vars(application)`, $appName))
+        body = Append(body,Sprintf(`SetVar(title,$%v_create$)`, pageName))
+        body = Append(body,`SetVar(btn_title,$create$)`)
+        lenCols = Len(cols)
+        while i < lenCols{
+            body = Append(body,Sprintf(`SetVar(item_%v,)`, cols[i]))
+            i=i+1
         }
-        Div(content-wrapper){
-            Div(text-right){
-                Button(Body: $rope_recalculate$, Class: btn btn-default, Page: #page_name#, Contract: RopeWorksCalculate)
-            }
-            Div(button-group){
-                If(#page#>0){
-                    Button(Body:"1", Class:btn btn-default, Page:#page_name#, PageParams: "page=0")
-                }.Else{
-                    Button(Body:"1", Class:btn btn-default disabled)
-                }
-                If(#page#>1){
-                    Button(Body:Calculate(#prev_page#+1), Class:btn btn-default, Page:#page_name#, PageParams: "page=#prev_page#")
-                }
-                If(And(#page#>0,#page#<#last_page#)){
-                    Button(Body:Calculate(#page#+1), Class:btn btn-default disabled)
-                }
-                If(#next_page#<#last_page#){
-                    Button(Body:Calculate(#next_page#+1), Class:btn btn-default, Page:#page_name#, PageParams: "page=#next_page#")
-                }
-                If(#page#<#last_page#){
-                    Button(Body:Calculate(#last_page#+1), Class:btn btn-default, Page:#page_name#, PageParams: "page=#last_page#")
-                }.ElseIf(#last_page#>0){
-                    Button(Body:Calculate(#last_page#+1), Class:btn btn-default disabled)
-                }
-            }
-            Div(panel panel-primary){
-                Div(panel-body){
-                    Div(table-responsive){
-                        DBFind(rope_works,works).Offset(#off#).Order(id).Custom(_date){
-                            Div(text-nowrap){
-                                DateTime(#operation_date#, DD-MM-YYYY)
-                            }
-                        }.Custom(_type){
-                            Div(text-nowrap){
-                                #operation_type#
-                            }
-                        }.Custom(_wb){
-                            Calculate(#work_bypass#, Prec:0)
-                        }.Custom(_ws){
-                            Calculate(#work_started#, Prec:0)
-                        }.Custom(_wf){
-                            Calculate(#work_final#, Prec:0)
-                        }.Custom(_wo){
-                            Calculate(#work_operation#, Prec:0)
-                        }.Custom(_wc){
-                            Calculate(#work_coil#, Prec:0)
-                        }
-                        Table(works,"$rope_drilling_id$=rope_drilling_id,$rope_operation$=operation,$rope_operation_date$=_date,$rope_operation_type$=_type,$rope_depth_started$=depth_started,$rope_depth_final$=depth_final,$rope_weight_started$=weight_started,$rope_weight_final$=weight_final,$rope_work_started$=_ws, $rope_work_final$=_wf, $rope_work_operation$=_wo, $rope_work_bypass$=_wb, $rope_work_coil$=_wc,$rope_bypass_bracing$=bypass_bracing")
-                    }
-                }
-            }
+        body = Append(body,`If(GetVar(Id)){`)
+        body = Append(body,Sprintf(`\tDBFind(%v).Where("id=#Id#").Vars(item)`, tableName))
+        body = Append(body,Sprintf(`\tSetVar(title,$%v_edit$)`, pageName))
+        body = Append(body,`\tSetVar(btn_title,$edit$)`)
+        body = Append(body,`}`)
+        body = Append(body,`SetTitle(#title#)`)
+        body = Append(body,`Div(content-wrapper){`)
+        body = Append(body,`\tDiv(breadcrumb){`)
+        body = Append(body,Sprintf(`\t\tLinkPage(Body: $%v$, Page: %v)`, pageRecordsName, pageRecordsName))
+        body = Append(body,`\t\tSpan(/, mh)`)
+        body = Append(body,`\t\tSpan(#title#, text-muted)`)
+        body = Append(body,`\t}`)
+        body = Append(body,`\tDiv(row){`)
+        body = Append(body,`\t\tDiv(col-sm-8 col-sm-offset-2 col-lg-6 col-lg-offset-3){`)
+        body = Append(body,`\t\t\tForm(panel panel-primary){`)
+        body = Append(body,`\t\t\t\tDiv(panel-heading){`)
+        body = Append(body,`\t\t\t\t\tLangRes($data_input$)`)
+        body = Append(body,`\t\t\t\t}`)
+        body = Append(body,`\t\t\t\tDiv(panel-body){`)
+        body = Append(body,`\t\t\t\t\tIf(GetVar(Id)){`)
+        body = Append(body,`\t\t\t\t\t\tInput(Name: Id, Type:hidden, Value: #Id#)`)
+        body = Append(body,`\t\t\t\t\t}`)
+        i=0
+        while i<lenCols{
+            body = Append(body,`\t\t\t\t\tDiv(row mt-sm){`)
+            body = Append(body,`\t\t\t\t\t\tDiv(col-sm-4 mt-sm text-right){`)
+            body = Append(body,Sprintf(`\t\t\t\t\t\t\tLangRes(%v)`, cols[i]))
+            body = Append(body,`\t\t\t\t\t\t}`)
+            body = Append(body,`\t\t\t\t\t\tDiv(#col-sm-8 text-left#){`)
+            body = Append(body,Sprintf(`\t\t\t\t\t\t\tInput(Name: %v, Value: #item_%v#)`, toCaps(cols[i]), cols[i]))
+            body = Append(body,`\t\t\t\t\t\t}`)
+            body = Append(body,`\t\t\t\t\t}`)
+            body = Append(body,`\t\t\t\t}`)
+            i=i+1
         }
+        body = Append(body,`\t\t\t\tDiv(panel-footer text-right){`)
+        body = Append(body,Sprintf(`\t\t\t\t\tButton(Body: #btn_title#, Page: %v, Class: btn btn-primary, Contract: %v)`, pageRecordsName, contractEditName))
+        body = Append(body,`\t\t\t\t}`)
+        body = Append(body,`\t\t\t}`)
+        body = Append(body,`\t\t}`)
+        body = Append(body,`\t}`)
+        body = Append(body,`}`)
+        return Join(body, "\n")
+    }
+    func getPrefix(appName string)string{
+        var temp array
+        temp = Split(appName, " ")
+        return ToLower(temp[0]+"_")
     }
     conditions {
         $table = DBFind("tables").Columns("columns").Where("name=?", $Name).Row()
         if !$table{
             warning "Table not found"
         }
+        var app string
+        app = DBFind("tables").Where("name=?", $Name).Columns("app_id").One("app_id")
+        $appName = DBFind("applications").Where("id=?", app).Columns("name").One("name")
+        if !$appName {
+            warning "Application not found"
+        }
+        $Name = ToLower($Name)
     }
 
     action {
-        var cols array
+        var cols array pageRecords pageEdit pageRecordsName pageName contractEditName contractDeleteName contractName prefix string
+        prefix = getPrefix($appName)
+        pageRecordsName = prefix + $Name
+        pageName = prefix + trim_s($Name)
+        contractName = toCaps(prefix) + toCaps(trim_s($Name))
+        contractEditName = contractName + "Edit"
+        contractDeleteName = contractName + "Delete"
+        Println(pageRecordsName,contractEditName,contractDeleteName)
+
         cols = GetMapKeys(JSONDecode($table["columns"]))
-        Println("cols",cols)
-
-        createPageRecords($Name,cols)
+        pageRecords = getPageRecords($Name, cols, pageName, pageRecordsName, contractDeleteName)
+        pageEdit = getPageEdit($Name, cols, pageRecordsName, pageName, contractEditName)
+        // Println("pageRecords",pageRecords)
+        // Println("pageEdit",pageEdit)
     }
 }
-
-/*
-
-
-
-
-
-
-DBFind(applications).Columns("id").Where("name='Rope accounting' AND deleted=0").Vars(application)
-
-SetVar(title,$rope_drilling_create$)
-SetVar(btn_title,$rope_create$)
-SetVar(drilling_filial,).(drilling_expedition,).(drilling_brigade,).(drilling_master,).(drilling_block_weight,).(drilling_candle_length,)
-If(GetVar(Id)){
-    DBFind(rope_drillings).Where("id=#Id#").Vars(drilling)
-    SetVar(title,$rope_drilling_edit$)
-    SetVar(btn_title,$rope_edit$)
-}
-SetTitle(#title#)
-Div(content-wrapper){
-    Div(breadcrumb){
-        LinkPage(Body: $rope_drillings$, Page: rope_drillings)
-        Span(/, mh-sm)
-        Span(#title#, text-muted)
-    }
-    Div(row){
-        Div(col-sm-8 col-sm-offset-2 col-lg-6 col-lg-offset-3){
-            Form(panel panel-primary){
-                Div(panel-heading){
-                    LangRes($rope_data_input$)
-                }
-                Div(panel-body){
-                    If(GetVar(Id)){
-                        Input(Name: Id, Type:hidden, Value: #Id#)
-                    }
-                    Div(row mt-sm){
-                        Div(col-sm-4 mt-sm text-right){
-                            LangRes(rope_filial)
-                        }
-                        Div(#col-sm-8 text-left#){
-                            Input(Name: Filial, Value: #drilling_filial#)
-                        }
-                    }
-                    Div(row mt-sm){
-                        Div(col-sm-4 mt-sm text-right){
-                            LangRes(rope_expedition)
-                        }
-                        Div(#col-sm-8 text-left#){
-                            Input(Name: Expedition, Value: #drilling_expedition#)
-                        }
-                    }
-                    Div(row mt-sm){
-                        Div(col-sm-4 mt-sm text-right){
-                            LangRes(rope_brigade)
-                        }
-                        Div(#col-sm-8 text-left#){
-                            Input(Name: Brigade, Value: #drilling_brigade#)
-                        }
-                    }
-                    Div(row mt-sm){
-                        Div(col-sm-4 mt-sm text-right){
-                            LangRes(rope_master)
-                        }
-                        Div(#col-sm-8 text-left#){
-                            Input(Name: Master, Value: #drilling_master#)
-                        }
-                    }
-                    Div(row mt-sm){
-                        Div(col-sm-4 mt-sm text-right){
-                            $rope_block_weight_full$, $rope_ton$
-                        }
-                        Div(#col-sm-8 text-left#){
-                            Input(Name: BlockWeight, Type: number, Value: #drilling_block_weight#)
-                        }
-                    }
-                    Div(row mt-sm){
-                        Div(col-sm-4 mt-sm text-right){
-                            LangRes(rope_candle_length)
-                        }
-                        Div(#col-sm-8 text-left#){
-                            Input(Name: CandleLength, Type:number, Value: #drilling_candle_length#)
-                        }
-                    }
-                }
-                Div(panel-footer text-right){
-                    Button(Body: #btn_title#, Page: rope_drillings, Class: btn btn-primary, Contract: RopeDrillingEdit)
-                }
-            }
-        }
-    }
-}
-*/
