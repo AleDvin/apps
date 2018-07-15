@@ -100,7 +100,7 @@ Form(content-wrapper){
                     }
                 }
                 Div(panel-footer text-right){
-                    Button(Body: $create_crud$, Class: btn btn-default, Contract: @1CrudCreate, Params: "Name=#table_name#")
+                    Button(Body: $create_crud$, Class: btn btn-default, Contract: @1CrudCreate, Params: "tableName=#table_name#")
                     Button(Body: Save, Class: btn btn-primary, Contract: @1EditTable, Page: app_tables, Params: "Name=#table_name#")
                 }
             }
