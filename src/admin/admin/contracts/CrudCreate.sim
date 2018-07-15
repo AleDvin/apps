@@ -57,66 +57,65 @@ contract CrudCreate {
         return Join(parts, "")
     }
     func getPaginator() string{
-        var body array
-        body = Append(body,Sprintf("DBFind(%v).Count(count)", $tableName))
-        body = Append(body,`If(#page#>0){`)
-        body = Append(body,`    SetVar(prev_page,Calculate(#page#-1)`)
-        body = Append(body,`}.Else{`)
-        body = Append(body,`    SetVar(page,0).(prev_page,0)`)
-        body = Append(body,`}`)
-        body = Append(body,"SetVar(per_page,25).(off,Calculate(#page#*#per_page#)).(last_page,Calculate(#count#/#per_page#)).(next_page,#last_page#)")
-        body = Append(body,`If(#count#>Calculate(#off#+#per_page#)){`)
-        body = Append(body,`    SetVar(next_page,Calculate(#page#+1)`)
-        body = Append(body,`}`)
-        body = Append(body,`Div(content-wrapper){`)
-        body = Append(body,`    Div(button-group){`)
-        body = Append(body,`        If(#page#>0){`)
-        body = Append(body,`            Button(Body:"1", Class:btn btn-default, Page:#page_name#, PageParams: "page=0")`)
-        body = Append(body,`        }.Else{`)
-        body = Append(body,`            Button(Body:"1", Class:btn btn-default disabled)`)
-        body = Append(body,`        }`)
-        body = Append(body,`        If(#page#>1){`)
-        body = Append(body,`            Button(Body:Calculate(#prev_page#+1),Class:btn btn-default, Page:#page_name#, PageParams:"page=#prev_page#")`)
-        body = Append(body,`        }`)
-        body = Append(body,`        If(And(#page#>0,#page#<#last_page#)){`)
-        body = Append(body,`            Button(Body:Calculate(#page#+1), Class:btn btn-default disabled)`)
-        body = Append(body,`        }`)
-        body = Append(body,`        If(#next_page#<#last_page#){`)
-        body = Append(body,`            Button(Body:Calculate(#next_page#+1),Class:btn btn-default,Page:#page_name#,PageParams:"page=#next_page#")`)
-        body = Append(body,`        }`)
-        body = Append(body,`        If(#page#<#last_page#){`)
-        body = Append(body,`            Button(Body:Calculate(#last_page#+1), Class:btn btn-default, Page:#page_name#,PageParams:"page=#last_page#")`)
-        body = Append(body,`        }.ElseIf(#last_page#>0){`)
-        body = Append(body,`            Button(Body:Calculate(#last_page#+1), Class:btn btn-default disabled)`)
-        body = Append(body,`        }`)
-        body = Append(body,`    }`)
+        var body string
+        body = `
+        DBFind(`+$tableName+`).Count(count)
+        If(#page#>0){
+            SetVar(prev_page,Calculate(#page#-1)
+        }.Else{
+            SetVar(page,0).(prev_page,0)
+        }
+        SetVar(per_page,25).(off,Calculate(#page#*#per_page#)).(last_page,Calculate(#count#/#per_page#)).(next_page,#last_page#)
+        If(#count#>Calculate(#off#+#per_page#)){
+            SetVar(next_page,Calculate(#page#+1)
+        }
+        Div(button-group){
+            If(#page#>0){
+                Button(Body:"1", Class:btn btn-default, Page:#page_name#, PageParams: "page=0")
+            }.Else{
+                Button(Body:"1", Class:btn btn-default disabled)
+            }
+            If(#page#>1){
+                Button(Body:Calculate(#prev_page#+1),Class:btn btn-default, Page:#page_name#, PageParams:"page=#prev_page#")
+            }
+            If(And(#page#>0,#page#<#last_page#)){
+                Button(Body:Calculate(#page#+1), Class:btn btn-default disabled)
+            }
+            If(#next_page#<#last_page#){
+                Button(Body:Calculate(#next_page#+1),Class:btn btn-default,Page:#page_name#, PageParams:"page=#next_page#")
+            }
+            If(#page#<#last_page#){
+                Button(Body:Calculate(#last_page#+1), Class:btn btn-default, Page:#page_name#, PageParams:"page=#last_page#")
+            }.ElseIf(#last_page#>0){
+                Button(Body:Calculate(#last_page#+1), Class:btn btn-default disabled)
+            }
+        }`
 
-        return Join(body, "\n")
+        return body
     }
-    func getPageRecords(cols array, pageName pageRecordsName contractDeleteName string) string{
-        var body array
-        body = Append(body,Sprintf(`DBFind(applications).Columns("id").Where("name='%v' AND deleted=0").Vars(application)`, $appName))
-        body = Append(body,Sprintf("DBFind(%v).Count(count)", $tableName))
-        body = Append(body,Sprintf("SetTitle($%v$))", pageRecordsName))
-        body = Append(body,Sprintf("SetVar(page_name,%v)", pageRecordsName))
-        body = Append(body, getPaginator())
-        body = Append(body,"    Div(panel panel-primary){")
-        body = Append(body,"        Div(panel-body){")
-        body = Append(body,"            Div(table-responsive){")
-        body = Append(body,Sprintf("                DBFind(%v,src_%v).Offset(#off#).Order(id).Custom", $tableName, $tableName))
-        body = Append(body,`.Custom(_actions){`)
-        body = Append(body,`    Div(text-right text-nowrap){`)
-        body = Append(body,Sprintf(`        Button(Class: btn btn-default fa fa-edit mr-sm, Page: %v, PageParams: "Id=#id#")`,pageRecordsName))
-        body = Append(body,Sprintf(`        Button(Class: btn btn-danger fa fa-trash, Page: %v, Contract: %v, Params: "Id=#id#").Alert($%v$, $%v$, $%v$)`,pageRecordsName, contractDeleteName,"delete_alert", "yes", "no"))
-        body = Append(body,`    }`)
-        body = Append(body,`}`)
-
-        body = Append(body,Sprintf(`                Table(src_%v)`,$tableName))
-        body = Append(body,"            }")
-        body = Append(body,"        }")
-        body = Append(body,"    }")
-        body = Append(body,"}")
-        return Join(body, "\n")
+    func generatePageRecords(cols array, pageEditName thisPageName contractDeleteName string) string{
+        var body string
+        body = `
+        DBFind(applications).Columns("id").Where("name='`+$appName+`' AND deleted=0").Vars(application)
+        SetTitle($`+thisPageName+`$)
+        SetVar(page_name,`+thisPageName+`)
+        Div(content-wrapper){
+            `+getPaginator()+`
+            Div(panel panel-primary){
+                Div(panel-body){
+                    Div(table-responsive){
+                        DBFind(`+$tableName+`,src_`+$tableName+`).Offset(#off#).Order(id).Custom(_actions){
+                            Div(text-right text-nowrap){
+                                Button(Class: btn btn-default fa fa-edit mr-sm, Page: `+pageEditName+`, PageParams: "Id=#id#")
+                                Button(Class: btn btn-danger fa fa-trash, Page: `+thisPageName+`, Contract: `+contractDeleteName+`, Params: "Id=#id#").Alert($delete_alert$, $yes$, $no$)
+                            }
+                        }
+                        Table(src_`+$tableName+`,"`+Join(cols,",")+`,=_actions")
+                    }
+                }
+            }
+        }`
+        return body
     }
     func trim_s(s string)string{
         if Substr(s, Size(s)-1, 1) == "s"{
@@ -125,58 +124,59 @@ contract CrudCreate {
         return s
     }
     func getPageEdit(cols array, pageName, pageRecordsName, contractEditName string)string{
-        var body array i lenCols int
-        body = Append(body,Sprintf(`DBFind(applications).Columns("id").Where("name='%v' AND deleted=0").Vars(application)`, $appName))
-        body = Append(body,Sprintf(`SetVar(title,$%v_create$)`, pageName))
-        body = Append(body,`SetVar(btn_title,$create$)`)
+        var body string i lenCols int
+        body = `DBFind(applications).Columns("id").Where("name='`+$appName+`' AND deleted=0").Vars(application)SetVar(title,$`+pageName+`_create$).(btn_title,$create$)`
         lenCols = Len(cols)
         while i < lenCols{
-            body = Append(body,Sprintf(`SetVar(item_%v,)`, cols[i]))
+            body = body + `SetVar(item_`+cols[i]+`,)`
             i=i+1
         }
-        body = Append(body,`If(GetVar(Id)){`)
-        body = Append(body,Sprintf(`    DBFind(%v).Where("id=#Id#").Vars(item)`, $tableName))
-        body = Append(body,Sprintf(`    SetVar(title,$%v_edit$)`, pageName))
-        body = Append(body,`    SetVar(btn_title,$edit$)`)
-        body = Append(body,`}`)
-        body = Append(body,`SetTitle(#title#)`)
-        body = Append(body,`Div(content-wrapper){`)
-        body = Append(body,`    Div(breadcrumb){`)
-        body = Append(body,Sprintf(`        LinkPage(Body: $%v$, Page: %v)`, pageRecordsName, pageRecordsName))
-        body = Append(body,`        Span(/, mh)`)
-        body = Append(body,`        Span(#title#, text-muted)`)
-        body = Append(body,`    }`)
-        body = Append(body,`    Div(row){`)
-        body = Append(body,`        Div(col-sm-8 col-sm-offset-2 col-lg-6 col-lg-offset-3){`)
-        body = Append(body,`            Form(panel panel-primary){`)
-        body = Append(body,`                Div(panel-heading){`)
-        body = Append(body,`                    LangRes($data_input$)`)
-        body = Append(body,`                }`)
-        body = Append(body,`                Div(panel-body){`)
-        body = Append(body,`                    If(GetVar(Id)){`)
-        body = Append(body,`                        Input(Name: Id, Type:hidden, Value: #Id#)`)
-        body = Append(body,`                    }`)
-        i=0
-        while i<lenCols{
-            body = Append(body,`                    Div(row mt-sm){`)
-            body = Append(body,`                        Div(col-sm-4 mt-sm text-right){`)
-            body = Append(body,Sprintf(`                            LangRes(%v)`, cols[i]))
-            body = Append(body,`                        }`)
-            body = Append(body,`                        Div(#col-sm-8 text-left#){`)
-            body = Append(body,Sprintf(`                            Input(Name: %v, Value: #item_%v#)`, toCamel(cols[i], true), cols[i]))
-            body = Append(body,`                        }`)
-            body = Append(body,`                    }`)
-            body = Append(body,`                }`)
-            i=i+1
+        body = body+`
+        If(GetVar(Id)){
+            DBFind(`+$tableName+`).Where("id=#Id#").Vars(item)
+            SetVar(title,$`+pageName+`_edit$)
+            SetVar(btn_title,$edit$)
         }
-        body = Append(body,`                Div(panel-footer text-right){`)
-        body = Append(body,Sprintf(`                    Button(Body: #btn_title#, Page: %v, Class: btn btn-primary, Contract: %v)`, pageRecordsName, contractEditName))
-        body = Append(body,`                }`)
-        body = Append(body,`            }`)
-        body = Append(body,`        }`)
-        body = Append(body,`    }`)
-        body = Append(body,`}`)
-        return Join(body, "\n")
+        SetTitle(#title#)
+        Div(content-wrapper){
+            Div(breadcrumb){
+                LinkPage(Body: $`+pageRecordsName+`$, Page: `+pageRecordsName+`)
+                Span(/, mh)
+                Span(#title#, text-muted)
+            }
+            Div(row){
+                Div(col-sm-8 col-sm-offset-2 col-lg-6 col-lg-offset-3){
+                    Form(panel panel-primary){
+                        Div(panel-heading){
+                            LangRes($data_input$)
+                        }
+                        Div(panel-body){
+                            If(GetVar(Id)){
+                                Input(Name: Id, Type:hidden, Value: #Id#)
+                            }`
+                            i=0
+                            while i<lenCols{
+                                body = body+`
+                                Div(row mt-sm){
+                                    Div(col-sm-4 mt-sm text-right){
+                                        LangRes(`+cols[i]+`)
+                                    }
+                                    Div(col-sm-8 text-left){
+                                        Input(Name: `+toCamel(cols[i], true)+`, Type:`+$pageInputTypes[GetColumnType($tableName, cols[i])]+`, Value: #item_`+cols[i]+`#)
+                                    }
+                                }`
+                                i=i+1
+                            }
+                            body = body+`
+                        }
+                        Div(panel-footer text-right){
+                            Button(Body: #btn_title#, Page: `+pageRecordsName+`, Class: btn btn-primary, Contract: `+contractEditName+`)
+                        }
+                    }
+                }
+            }
+        }`
+        return body
     }
     func getPrefix(appName string)string{
         var temp array
@@ -197,7 +197,7 @@ contract CrudCreate {
         var body string
         return body
     }
-    func getContractEdit(name string, cols, types array)string{
+    func getContractEdit(name string, cols array)string{
         var body string
         return body
     }
@@ -244,14 +244,39 @@ contract CrudCreate {
             warning "Application not found"
         }
         $tableName = ToLower($tableName)
-    }
 
+        var pageInputTypes contractInputTypes map
+        pageInputTypes["text"] = "text"
+        pageInputTypes["number"] = "number"
+        pageInputTypes["money"] = "number"
+        pageInputTypes["varchar"] = "text"
+        pageInputTypes["datetime"] = "date"
+        pageInputTypes["double"] = "number"
+        pageInputTypes["character"] = "text"
+        pageInputTypes["json"] = "textarea"
+        pageInputTypes["bytea"] = "file"
+        pageInputTypes["uuid"] = "text"
+
+        contractInputTypes["text"] = "string"
+        contractInputTypes["number"] = "int"
+        contractInputTypes["money"] = "money"
+        contractInputTypes["varchar"] = "string"
+        contractInputTypes["datetime"] = "string"
+        contractInputTypes["double"] = "float"
+        contractInputTypes["character"] = "string"
+        contractInputTypes["json"] = "string"
+        contractInputTypes["bytea"] = "bytes"
+        contractInputTypes["uuid"] = "string"
+
+        $pageInputTypes = pageInputTypes
+        $contractInputTypes = contractInputTypes
+    }
     action {
         Println("")
         var cols colsNames colsTypes array
         cols = JSONDecode($table["columns"])
         colsNames = GetMapKeys(cols)
-        colsTypes = getMapValues(cols, colsNames)
+        Println(colsNames)
 
         var pageRecordsName pageName pageEditName contractEditName contractDeleteName contractName prefix string
         prefix = getPrefix($appName)
@@ -264,10 +289,10 @@ contract CrudCreate {
         Println(pageEditName, pageRecordsName,contractEditName,contractDeleteName)
 
         var pageRecords pageEdit contractDelete contractEdit string
-        pageRecords = getPageRecords(colsNames, pageName, pageRecordsName, contractDeleteName)
+        pageRecords = generatePageRecords(colsNames, pageEditName, pageRecordsName, contractDeleteName)
         pageEdit = getPageEdit(colsNames, pageName, pageRecordsName, contractEditName)
         contractDelete = getContractDelete(contractDeleteName, colsNames)
-        contractEdit = getContractEdit(contractEditName, colsNames, colsTypes)
+        contractEdit = getContractEdit(contractEditName, colsNames)
 
         // Println("pageRecords",pageRecords)
         // Println("pageEdit",pageEdit)
