@@ -162,7 +162,7 @@ contract CrudCreate {
                                         LangRes(`+cols[i]+`)
                                     }
                                     Div(col-sm-8 text-left){
-                                        Input(Name: `+toCamel(cols[i], true)+`, Type:`+$pageInputTypes[GetColumnType($tableName, cols[i])]+`, Value: #item_`+cols[i]+`#)
+                                        Input(Name: `+toCamel(cols[i], false)+`, Type:`+$pageInputTypes[GetColumnType($tableName, cols[i])]+`, Value: #item_`+cols[i]+`#)
                                     }
                                 }`
                                 i=i+1
@@ -194,14 +194,77 @@ contract CrudCreate {
         return values
     }
     func getContractDelete(name string, cols array)string{
-        var body string
+        var body dColName string i lenCols int
+        lenCols = Len(cols)
+        while i<lenCols{
+            if "delete" == cols[i] || "deleted" == cols[i]{
+                dColName = cols[i]
+            }
+            i=i+1
+        }
+        if !dColName{
+            return ""
+        }
+        body = `
+        contract `+name+` {
+            data {
+                Id int
+            }
+            conditions {
+                if !DBFind("`+$tableName+`").Where("id=? and `+dColName+`=0", $Id).One("id") {
+                    warning "Record not found"
+                }
+            }
+            action {
+                DBUpdate("`+$tableName+`", $Id, "`+dColName+`", 1)
+            }
+        }`
         return body
     }
+    func globJoin(cols array)string{
+        var body array i lenCols int
+        while i<lenCols{
+            body = Append(body, "$"+$contractInputTypes[GetColumnType($tableName, cols[i])])
+            i=i+1
+        }
+        return Join(body, ",")
+    }
     func getContractEdit(name string, cols array)string{
-        var body string
+        var body dColName string i lenCols int
+        lenCols = Len(cols)
+        body = `
+        contract `+name+` {
+            data {
+                Id string "optional"`
+                while i<lenCols{
+                    body = body+`
+                    `+toCamel(cols[i], false)+` ` +$contractInputTypes[GetColumnType($tableName, cols[i])]
+                    i=i+1
+                }
+                body = body + `
+            }
+            conditions {
+                $Id = Int($id)
+                if $Id > 0{
+                    if !DBFind("`+$tableName+`").Where("id=?", $Id).One("id") {
+                        warning "Record not found"
+                    }
+                }
+            }
+            action {
+                if $Id > 0{
+                    DBUpdate("`+$tableName+`", $Id, "`+dColName+`", 1)
+                }else{
+                    DBInsert("`+$tableName+`", "`+Join(cols, ",")+`",`+globJoin(cols)+`)
+                }
+            }
+        }`
         return body
     }
     func create(type, name, content string){
+        if !(content && name && type){
+            return
+        }
         var actor string id int item map
         id = Int(DBFind(type).Where("name=?", name).One("id"))
         if type == "pages"{
@@ -231,7 +294,8 @@ contract CrudCreate {
         item["Menu"] = "default_menu"
 
         // Println("actor:", actor, "item:",item)
-        CallContract(actor, item)
+        // CallContract(actor, item)
+        buffer_Manager("Action,Key,Val", "set", name, JSONEncode(content))
     }
     conditions {
         $table = DBFind("tables").Columns("columns").Where("name=?", $tableName).Row()
@@ -291,15 +355,13 @@ contract CrudCreate {
         var pageRecords pageEdit contractDelete contractEdit string
         pageRecords = generatePageRecords(colsNames, pageEditName, pageRecordsName, contractDeleteName)
         pageEdit = getPageEdit(colsNames, pageName, pageRecordsName, contractEditName)
+
         contractDelete = getContractDelete(contractDeleteName, colsNames)
         contractEdit = getContractEdit(contractEditName, colsNames)
 
-        // Println("pageRecords",pageRecords)
-        // Println("pageEdit",pageEdit)
         create("pages", pageRecordsName, pageRecords)
         create("pages", pageEditName, pageEdit)
-        // create("contracts", contractEditName, contractEdit)
-        // create("contracts", contractDeleteName, contractDelete)
+        create("contracts", contractEditName, contractEdit)
+        create("contracts", contractDeleteName, contractDelete)
     }
-
 }
