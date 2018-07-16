@@ -100,7 +100,8 @@ Form(content-wrapper){
                     }
                 }
                 Div(panel-footer text-right){
-                    Button(Body: CRUD, Class: btn btn-default, Contract: @1CrudCreate, Params: "tableName=#table_name#")
+                    DBFind(tables).Columns("id").Where("name='binaries'").Vars(binaries)
+                    Button(Body: CRUD, Class: btn btn-default, Contract: @1CrudCreate, Params: "tableName=#table_name#", Page: table_view, PageParams: "tabl_id=#binaries_id#")
                     Button(Body: Save, Class: btn btn-primary, Contract: @1EditTable, Page: app_tables, Params: "Name=#table_name#")
                 }
             }

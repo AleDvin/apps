@@ -95,11 +95,11 @@ contract CrudCreate {
     }
     func generatePageRecords(cols array, pageEditName thisPageName contractDeleteName string) string{
         var body string
-        body = `
-        DBFind(applications).Columns("id").Where("name='`+$appName+`' AND deleted=0").Vars(application)
+        body = `DBFind(applications).Columns("id").Where("name='`+$appName+`' AND deleted=0").Vars(application)
         SetTitle($`+thisPageName+`$)
         SetVar(page_name,`+thisPageName+`)
         Div(content-wrapper){
+            AddToolButton(Title: Create, Page: `+pageEditName+`, Icon: icon-plus)
             `+getPaginator()+`
             Div(panel panel-primary){
                 Div(panel-body){
@@ -205,8 +205,7 @@ contract CrudCreate {
         if !dColName{
             return ""
         }
-        body = `
-        contract `+name+` {
+        body = `contract `+name+` {
             data {
                 Id int
             }
@@ -223,17 +222,18 @@ contract CrudCreate {
     }
     func globJoin(cols array)string{
         var body array i lenCols int
+        lenCols = Len(cols)
         while i<lenCols{
-            body = Append(body, "$"+$contractInputTypes[GetColumnType($tableName, cols[i])])
+            body = Append(body, "$"+toCamel(cols[i], false))
             i=i+1
         }
+        Println("globJoin",cols,body)
         return Join(body, ",")
     }
     func getContractEdit(name string, cols array)string{
         var body dColName string i lenCols int
         lenCols = Len(cols)
-        body = `
-        contract `+name+` {
+        body = `contract `+name+` {
             data {
                 Id string "optional"`
                 while i<lenCols{
@@ -244,7 +244,7 @@ contract CrudCreate {
                 body = body + `
             }
             conditions {
-                $Id = Int($id)
+                $Id = Int($Id)
                 if $Id > 0{
                     if !DBFind("`+$tableName+`").Where("id=?", $Id).One("id") {
                         warning "Record not found"
@@ -253,7 +253,7 @@ contract CrudCreate {
             }
             action {
                 if $Id > 0{
-                    DBUpdate("`+$tableName+`", $Id, "`+dColName+`", 1)
+                    DBUpdate("`+$tableName+`", $Id, "`+Join(cols, ",")+`",`+globJoin(cols)+`)
                 }else{
                     DBInsert("`+$tableName+`", "`+Join(cols, ",")+`",`+globJoin(cols)+`)
                 }
@@ -261,41 +261,26 @@ contract CrudCreate {
         }`
         return body
     }
-    func create(type, name, content string){
+    func createExportItem(type, name, content string)map{
+        var item map
         if !(content && name && type){
             return
         }
-        var actor string id int item map
-        id = Int(DBFind(type).Where("name=?", name).One("id"))
         if type == "pages"{
-            if id > 0{
-                actor = "EditPage"
-            }else{
-                actor = "NewPage"
-            }
-        }
-        if type == "contracts"{
-            // id = GetContractByName(name)
-            if id > 0{
-                actor = "EditContract"
-            }else{
-                actor = "NewContract"
-            }
-        }
-        if !actor{
-            return
+            item["Menu"] = "default_menu"
         }
 
-        item["Name"] = name
-        item["Value"] = content
-        item["Id"] = id
         item["Conditions"] = "true"
-        item["ApplicationId"] = $appId
-        item["Menu"] = "default_menu"
-
-        // Println("actor:", actor, "item:",item)
-        // CallContract(actor, item)
-        buffer_Manager("Action,Key,Val", "set", name, JSONEncode(content))
+        item["Value"] = content
+        item["Name"] = name
+        item["Type"] = type
+        return item
+    }
+    func export(name string, items ...){
+        var app map
+        app["name"] = name
+        app["data"] = items
+        UploadBinary("Name,Data,ApplicationId,DataMimeType", "export "+name, JSONEncode(app), $appId, "application/json")
     }
     conditions {
         $table = DBFind("tables").Columns("columns").Where("name=?", $tableName).Row()
@@ -359,9 +344,13 @@ contract CrudCreate {
         contractDelete = getContractDelete(contractDeleteName, colsNames)
         contractEdit = getContractEdit(contractEditName, colsNames)
 
-        create("pages", pageRecordsName, pageRecords)
-        create("pages", pageEditName, pageEdit)
-        create("contracts", contractEditName, contractEdit)
-        create("contracts", contractDeleteName, contractDelete)
+        export(
+            $appName,
+            createExportItem("pages", pageRecordsName, pageRecords),
+            createExportItem("pages", pageEditName, pageEdit),
+            createExportItem("contracts", contractEditName, contractEdit),
+            createExportItem("contracts", contractDeleteName, contractDelete)
+        )
+
     }
 }
